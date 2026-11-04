@@ -253,7 +253,7 @@ done
 VIDEO_URL="$(json '.video.url // empty')"
 DOWNLOAD_URL="$(json '.video.downloadUrl // .video.url // empty')"
 SHARE_URL="$(json '.shareUrl // empty')"
-set_output status done
+set_output status "done"
 set_output video-url "$VIDEO_URL"
 set_output share-url "$SHARE_URL"
 [[ -n "$DOWNLOAD_URL" ]] || fail "Job $JOB_ID is done but has no video URL."

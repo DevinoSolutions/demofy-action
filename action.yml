@@ -147,7 +147,8 @@ runs:
 
     - if: ${{ steps.upload.outputs.artifact-url != '' }}
       shell: bash
-      run: printf 'Artifact on this run: [%s](%s)\n\n' "$(basename "$VIDEO_PATH")" "$URL" >>"$GITHUB_STEP_SUMMARY"
+      run: |
+        printf 'Artifact on this run: [%s](%s)\n\n' "$(basename "$VIDEO_PATH")" "$URL" >>"$GITHUB_STEP_SUMMARY"
       env:
         VIDEO_PATH: ${{ steps.demofy.outputs.video-path }}
         URL: ${{ steps.upload.outputs.artifact-url }}
