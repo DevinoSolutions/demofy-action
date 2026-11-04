@@ -36,7 +36,8 @@ jobs:
           PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
 
   action:
-    # The action itself (uses: ./) against the mock: inputs, outputs, the artifact and a refusal.
+    # The action itself (uses: ./) against the mock: inputs, outputs, the MP4 and a refusal.
+    # No artifact upload: org CI must not depend on GitHub artifact storage (quota, T-8322).
     runs-on: ubuntu-latest
     env:
       DEMOFY_POLL_INITIAL: 1
@@ -60,9 +61,10 @@ jobs:
           url: https://example.com
           prompt: Show the home page
           base-url: http://127.0.0.1:18765
-          artifact-name: mock-demo-${{ github.run_attempt }}
+          artifact-name: mock-demo
+          upload-artifact: false
 
-      - name: Check the outputs and the artifact
+      - name: Check the outputs and the file
         env:
           JOB_ID: ${{ steps.demo.outputs.job-id }}
           STATUS: ${{ steps.demo.outputs.status }}
@@ -73,11 +75,12 @@ jobs:
         run: |
           set -euo pipefail
           test "$JOB_ID" = job-success
-          test "$STATUS" = done
+          test "$STATUS" = "done"
           test "$PAGE_URL" = http://127.0.0.1:18765/jobs/job-success
           test "$VIDEO_URL" = http://127.0.0.1:18765/files/job-success.mp4
           test -s "$VIDEO_PATH"
-          case "$ARTIFACT_URL" in https://github.com/*/artifacts/*) ;; *) echo "artifact-url: '$ARTIFACT_URL'"; exit 1 ;; esac
+          case "$VIDEO_PATH" in */mock-demo.mp4) ;; *) echo "video-path: '$VIDEO_PATH'"; exit 1 ;; esac
+          test -z "$ARTIFACT_URL"
           grep -q "Download the MP4" "$GITHUB_STEP_SUMMARY"
 
       - id: refused
@@ -88,6 +91,7 @@ jobs:
           url: https://example.com
           prompt: Show the home page
           base-url: http://127.0.0.1:18765
+          upload-artifact: false
 
       - name: Check the refusal failed the step
         env:

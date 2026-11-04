@@ -79,6 +79,10 @@ inputs:
     description: File and artifact name for the MP4, without the extension. Empty is demofy-<job-id>.
     required: false
     default: ""
+  retention-days:
+    description: Days to keep the artifact (1 to 90). Empty is the repository default.
+    required: false
+    default: ""
   base-url:
     description: The Demofy app origin.
     required: false
@@ -143,6 +147,7 @@ runs:
       with:
         path: ${{ steps.demofy.outputs.video-path }}
         archive: false
+        retention-days: ${{ inputs.retention-days }}
         if-no-files-found: error
 
     - if: ${{ steps.upload.outputs.artifact-url != '' }}

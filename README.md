@@ -49,6 +49,7 @@ the video.
 | `timeout-minutes` | no | `60` | How long to wait, 1 to 180. Most demos take 5 to 30 minutes. |
 | `upload-artifact` | no | `true` | Upload the MP4 to the run. |
 | `artifact-name` | no | `demofy-<job-id>` | File and artifact name for the MP4, without `.mp4`. |
+| `retention-days` | no | repository default | Days to keep the artifact, 1 to 90. |
 | `base-url` | no | `https://app.demofy.io` | The Demofy app origin. |
 
 ## Outputs
@@ -144,7 +145,9 @@ The step fails, with Demofy's own sentence, when:
 - the job fails: `error-code` holds Demofy's code and the log has the reason;
 - the page needs a sign-in: the log links the job's sign-in page. Record behind a login with a saved
   connection (`connection-id`) instead;
-- `timeout-minutes` passes. The job keeps running in Demofy; the job page has it.
+- `timeout-minutes` passes. The job keeps running in Demofy; the job page has it;
+- GitHub refuses the artifact, for example when the account's artifact storage quota is used up. The
+  video is still on the runner: set `upload-artifact: false` and use `video-path` or `video-url`.
 
 Short network errors and `5xx` answers while waiting are retried; a `429` while waiting is honoured
 with its `Retry-After`.

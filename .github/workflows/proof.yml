@@ -16,6 +16,10 @@ on:
       prompt:
         description: Goal prompt
         default: Show the home page and what Demofy does
+      upload-artifact:
+        description: Upload the MP4 as a run artifact (needs free org artifact storage)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -54,23 +58,27 @@ jobs:
           api-key: ${{ secrets.DEMOFY_API_KEY }}
           url: ${{ inputs.url }}
           prompt: ${{ inputs.prompt }}
+          upload-artifact: ${{ inputs.upload-artifact }}
       - name: Verify the outputs, the file and the links
         env:
           JOB_ID: ${{ steps.demo.outputs.job-id }}
           STATUS: ${{ steps.demo.outputs.status }}
           PAGE_URL: ${{ steps.demo.outputs.page-url }}
+          SHARE_URL: ${{ steps.demo.outputs.share-url }}
           VIDEO_URL: ${{ steps.demo.outputs.video-url }}
           VIDEO_PATH: ${{ steps.demo.outputs.video-path }}
           ARTIFACT_URL: ${{ steps.demo.outputs.artifact-url }}
+          UPLOAD: ${{ inputs.upload-artifact }}
         run: |
           set -euo pipefail
           echo "job-id: $JOB_ID"
           echo "status: $STATUS"
           echo "page-url: $PAGE_URL"
-          echo "artifact-url: $ARTIFACT_URL"
-          test "$STATUS" = done
+          echo "share-url: ${SHARE_URL:-(sharing off)}"
+          echo "artifact-url: ${ARTIFACT_URL:-(no upload)}"
+          test "$STATUS" = "done"
           test -n "$VIDEO_URL"
-          test -n "$ARTIFACT_URL"
+          if [ "$UPLOAD" = "true" ]; then test -n "$ARTIFACT_URL"; fi
           echo "mp4: $(wc -c <"$VIDEO_PATH") bytes, $(file -b "$VIDEO_PATH")"
           test -s "$VIDEO_PATH"
           video_code="$(curl -s -o /dev/null -w '%{http_code}' "$VIDEO_URL")"
