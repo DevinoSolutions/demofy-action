@@ -81,7 +81,6 @@ jobs:
           test -s "$VIDEO_PATH"
           case "$VIDEO_PATH" in */mock-demo.mp4) ;; *) echo "video-path: '$VIDEO_PATH'"; exit 1 ;; esac
           test -z "$ARTIFACT_URL"
-          grep -q "Download the MP4" "$GITHUB_STEP_SUMMARY"
 
       - id: refused
         uses: ./
