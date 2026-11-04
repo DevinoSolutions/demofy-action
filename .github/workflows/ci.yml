@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      upload-artifact:
+        description: Also upload the mock MP4 as a run artifact (needs free org artifact storage)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -37,7 +42,8 @@ jobs:
 
   action:
     # The action itself (uses: ./) against the mock: inputs, outputs, the MP4 and a refusal.
-    # No artifact upload: org CI must not depend on GitHub artifact storage (quota, T-8322).
+    # The artifact upload runs only on a manual dispatch: org CI must not depend on GitHub
+    # artifact storage (quota, T-8322).
     runs-on: ubuntu-latest
     env:
       DEMOFY_POLL_INITIAL: 1
@@ -61,8 +67,9 @@ jobs:
           url: https://example.com
           prompt: Show the home page
           base-url: http://127.0.0.1:18765
-          artifact-name: mock-demo
-          upload-artifact: false
+          artifact-name: mock-demo-${{ github.run_attempt }}
+          upload-artifact: ${{ inputs.upload-artifact == true }}
+          retention-days: 1
 
       - name: Check the outputs and the file
         env:
@@ -72,6 +79,7 @@ jobs:
           VIDEO_URL: ${{ steps.demo.outputs.video-url }}
           VIDEO_PATH: ${{ steps.demo.outputs.video-path }}
           ARTIFACT_URL: ${{ steps.demo.outputs.artifact-url }}
+          UPLOAD: ${{ inputs.upload-artifact == true }}
         run: |
           set -euo pipefail
           test "$JOB_ID" = job-success
@@ -79,8 +87,12 @@ jobs:
           test "$PAGE_URL" = http://127.0.0.1:18765/jobs/job-success
           test "$VIDEO_URL" = http://127.0.0.1:18765/files/job-success.mp4
           test -s "$VIDEO_PATH"
-          case "$VIDEO_PATH" in */mock-demo.mp4) ;; *) echo "video-path: '$VIDEO_PATH'"; exit 1 ;; esac
-          test -z "$ARTIFACT_URL"
+          case "$VIDEO_PATH" in */mock-demo-*.mp4) ;; *) echo "video-path: '$VIDEO_PATH'"; exit 1 ;; esac
+          if [ "$UPLOAD" = "true" ]; then
+            case "$ARTIFACT_URL" in https://github.com/*/artifacts/*) ;; *) echo "artifact-url: '$ARTIFACT_URL'"; exit 1 ;; esac
+          else
+            test -z "$ARTIFACT_URL"
+          fi
 
       - id: refused
         uses: ./
