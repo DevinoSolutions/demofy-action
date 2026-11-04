@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: shellcheck scripts/*.sh tests/*.sh
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Mocked API suite
+        shell: bash
+        run: bash tests/run.sh
+        env:
+          PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
+
+  action:
+    # The action itself (uses: ./) against the mock: inputs, outputs, the artifact and a refusal.
+    runs-on: ubuntu-latest
+    env:
+      DEMOFY_POLL_INITIAL: 1
+      DEMOFY_POLL_MAX: 1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start the mock API
+        run: |
+          mkdir -p "$RUNNER_TEMP/mock"
+          python3 tests/mock_api.py 18765 "$RUNNER_TEMP/mock" >"$RUNNER_TEMP/mock/server.log" 2>&1 &
+          for _ in $(seq 1 50); do
+            curl -s --max-time 2 -o /dev/null http://127.0.0.1:18765/files/ping && exit 0
+            sleep 0.2
+          done
+          exit 1
+
+      - id: demo
+        uses: ./
+        with:
+          api-key: dmf_success
+          url: https://example.com
+          prompt: Show the home page
+          base-url: http://127.0.0.1:18765
+          artifact-name: mock-demo-${{ github.run_attempt }}
+
+      - name: Check the outputs and the artifact
+        env:
+          JOB_ID: ${{ steps.demo.outputs.job-id }}
+          STATUS: ${{ steps.demo.outputs.status }}
+          PAGE_URL: ${{ steps.demo.outputs.page-url }}
+          VIDEO_URL: ${{ steps.demo.outputs.video-url }}
+          VIDEO_PATH: ${{ steps.demo.outputs.video-path }}
+          ARTIFACT_URL: ${{ steps.demo.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          test "$JOB_ID" = job-success
+          test "$STATUS" = done
+          test "$PAGE_URL" = http://127.0.0.1:18765/jobs/job-success
+          test "$VIDEO_URL" = http://127.0.0.1:18765/files/job-success.mp4
+          test -s "$VIDEO_PATH"
+          case "$ARTIFACT_URL" in https://github.com/*/artifacts/*) ;; *) echo "artifact-url: '$ARTIFACT_URL'"; exit 1 ;; esac
+          grep -q "Download the MP4" "$GITHUB_STEP_SUMMARY"
+
+      - id: refused
+        uses: ./
+        continue-on-error: true
+        with:
+          api-key: dmf_bad
+          url: https://example.com
+          prompt: Show the home page
+          base-url: http://127.0.0.1:18765
+
+      - name: Check the refusal failed the step
+        env:
+          OUTCOME: ${{ steps.refused.outcome }}
+          JOB_ID: ${{ steps.refused.outputs.job-id }}
+        run: |
+          test "$OUTCOME" = failure
+          test -z "$JOB_ID"

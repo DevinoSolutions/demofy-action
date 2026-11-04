@@ -1,0 +1,79 @@
+name: Live proof
+
+# Dispatch only. "live" records ONE real demo on app.demofy.io and spends one of the key owner's
+# daily demos; "bad-key" proves the 401 path and creates nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: live records one real demo; bad-key checks the 401 refusal
+        type: choice
+        options: [bad-key, live]
+        default: bad-key
+      url:
+        description: Page to record
+        default: https://demofy.io
+      prompt:
+        description: Goal prompt
+        default: Show the home page and what Demofy does
+
+permissions:
+  contents: read
+
+jobs:
+  bad-key:
+    if: ${{ inputs.scenario == 'bad-key' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: demo
+        uses: ./
+        continue-on-error: true
+        with:
+          api-key: dmf_not-a-real-key
+          url: ${{ inputs.url }}
+          prompt: ${{ inputs.prompt }}
+      - name: Expect a refusal and no job
+        env:
+          OUTCOME: ${{ steps.demo.outcome }}
+          JOB_ID: ${{ steps.demo.outputs.job-id }}
+        run: |
+          test "$OUTCOME" = failure
+          test -z "$JOB_ID"
+          echo "Refused, and no job was created."
+
+  live:
+    if: ${{ inputs.scenario == 'live' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - id: demo
+        uses: ./
+        with:
+          api-key: ${{ secrets.DEMOFY_API_KEY }}
+          url: ${{ inputs.url }}
+          prompt: ${{ inputs.prompt }}
+      - name: Verify the outputs, the file and the links
+        env:
+          JOB_ID: ${{ steps.demo.outputs.job-id }}
+          STATUS: ${{ steps.demo.outputs.status }}
+          PAGE_URL: ${{ steps.demo.outputs.page-url }}
+          VIDEO_URL: ${{ steps.demo.outputs.video-url }}
+          VIDEO_PATH: ${{ steps.demo.outputs.video-path }}
+          ARTIFACT_URL: ${{ steps.demo.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          echo "job-id: $JOB_ID"
+          echo "status: $STATUS"
+          echo "page-url: $PAGE_URL"
+          echo "artifact-url: $ARTIFACT_URL"
+          test "$STATUS" = done
+          test -n "$VIDEO_URL"
+          test -n "$ARTIFACT_URL"
+          echo "mp4: $(wc -c <"$VIDEO_PATH") bytes, $(file -b "$VIDEO_PATH")"
+          test -s "$VIDEO_PATH"
+          video_code="$(curl -s -o /dev/null -w '%{http_code}' "$VIDEO_URL")"
+          echo "summary video link: HTTP $video_code"
+          echo "job page: HTTP $(curl -s -o /dev/null -w '%{http_code}' "$PAGE_URL")"
+          test "$video_code" = 200

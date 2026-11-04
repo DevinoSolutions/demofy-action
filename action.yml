@@ -1,0 +1,153 @@
+name: Demofy Demo Video
+description: Record an AI-planned product demo video of a URL with Demofy, from a goal prompt, and attach the MP4 to the workflow run.
+author: Devino
+branding:
+  icon: video
+  color: purple
+
+inputs:
+  api-key:
+    description: A Demofy API key (starts with dmf_) with write permission. Store it as a secret, e.g. DEMOFY_API_KEY.
+    required: true
+  url:
+    description: The page to record.
+    required: true
+  prompt:
+    description: The intent line, what the demo should show. Up to 500 characters on Free, 4000 on Pro.
+    required: true
+  quality:
+    description: "standard, high or ultra. Empty is the free tier; high and ultra need Pro."
+    required: false
+    default: ""
+  format:
+    description: "desktop or mobile. Empty is desktop."
+    required: false
+    default: ""
+  capture-profile:
+    description: "compact for a smaller desktop viewport at the same output resolution. Empty keeps the usual capture."
+    required: false
+    default: ""
+  connection-id:
+    description: A saved Demofy connection id, to record signed in.
+    required: false
+    default: ""
+  pacing:
+    description: "brisk (default) or unhurried voice-over pacing."
+    required: false
+    default: ""
+  captions:
+    description: "off, plate, minimal, pop or headline. Empty is the workspace Brand setting."
+    required: false
+    default: ""
+  narration:
+    description: "off to skip the voice-over. Empty narrates every line."
+    required: false
+    default: ""
+  music:
+    description: "A built-in music track id, or off. Empty is the default track."
+    required: false
+    default: ""
+  voice-profile-id:
+    description: A voice id from GET /api/voices (Pro).
+    required: false
+    default: ""
+  setup-url:
+    description: A same-origin page that resets the demo account before recording.
+    required: false
+    default: ""
+  look:
+    description: 'A JSON object of look names, e.g. {"backdrop":"beam","padding":"snug"}.'
+    required: false
+    default: ""
+  extra-json:
+    description: A JSON object merged into the create body last, for any other POST /api/jobs field.
+    required: false
+    default: ""
+  wait:
+    description: Wait for the video to finish. When false, the step ends once the job is created.
+    required: false
+    default: "true"
+  timeout-minutes:
+    description: How long to wait for the video, in minutes (1 to 180). Demos usually take 5 to 30 minutes.
+    required: false
+    default: "60"
+  upload-artifact:
+    description: Upload the finished MP4 to the workflow run as an artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: File and artifact name for the MP4, without the extension. Empty is demofy-<job-id>.
+    required: false
+    default: ""
+  base-url:
+    description: The Demofy app origin.
+    required: false
+    default: https://app.demofy.io
+
+outputs:
+  job-id:
+    description: The Demofy job id.
+    value: ${{ steps.demofy.outputs.job-id }}
+  status:
+    description: "The last job status: queued, discovering, capturing, compositing, uploading, done or failed."
+    value: ${{ steps.demofy.outputs.status }}
+  page-url:
+    description: The job page in the Demofy app (opens for members of the workspace).
+    value: ${{ steps.demofy.outputs.page-url }}
+  video-url:
+    description: A signed URL of the finished MP4, valid for 7 days.
+    value: ${{ steps.demofy.outputs.video-url }}
+  share-url:
+    description: The public share link, when sharing is on for the job.
+    value: ${{ steps.demofy.outputs.share-url }}
+  video-path:
+    description: Local path of the downloaded MP4 on the runner.
+    value: ${{ steps.demofy.outputs.video-path }}
+  error-code:
+    description: Demofy's stable error code when the job failed.
+    value: ${{ steps.demofy.outputs.error-code }}
+  artifact-url:
+    description: Link to the uploaded MP4 artifact on the workflow run.
+    value: ${{ steps.upload.outputs.artifact-url }}
+
+runs:
+  using: composite
+  steps:
+    - id: demofy
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/demofy.sh"
+      env:
+        DEMOFY_API_KEY: ${{ inputs.api-key }}
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_QUALITY: ${{ inputs.quality }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_CAPTURE_PROFILE: ${{ inputs.capture-profile }}
+        INPUT_CONNECTION_ID: ${{ inputs.connection-id }}
+        INPUT_PACING: ${{ inputs.pacing }}
+        INPUT_CAPTIONS: ${{ inputs.captions }}
+        INPUT_NARRATION: ${{ inputs.narration }}
+        INPUT_MUSIC: ${{ inputs.music }}
+        INPUT_VOICE_PROFILE_ID: ${{ inputs.voice-profile-id }}
+        INPUT_SETUP_URL: ${{ inputs.setup-url }}
+        INPUT_LOOK: ${{ inputs.look }}
+        INPUT_EXTRA_JSON: ${{ inputs.extra-json }}
+        INPUT_WAIT: ${{ inputs.wait }}
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+
+    - id: upload
+      if: ${{ inputs.upload-artifact == 'true' && steps.demofy.outputs.video-path != '' }}
+      uses: actions/upload-artifact@v7
+      with:
+        path: ${{ steps.demofy.outputs.video-path }}
+        archive: false
+        if-no-files-found: error
+
+    - if: ${{ steps.upload.outputs.artifact-url != '' }}
+      shell: bash
+      run: printf 'Artifact on this run: [%s](%s)\n\n' "$(basename "$VIDEO_PATH")" "$URL" >>"$GITHUB_STEP_SUMMARY"
+      env:
+        VIDEO_PATH: ${{ steps.demofy.outputs.video-path }}
+        URL: ${{ steps.upload.outputs.artifact-url }}
