@@ -17,6 +17,7 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
@@ -32,6 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Mocked API suite
@@ -45,6 +47,7 @@ jobs:
     # The artifact upload runs only on a manual dispatch: org CI must not depend on GitHub
     # artifact storage (quota, T-8322).
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DEMOFY_POLL_INITIAL: 1
       DEMOFY_POLL_MAX: 1
